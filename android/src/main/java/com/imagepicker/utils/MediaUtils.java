@@ -46,10 +46,20 @@ public class MediaUtils
                 .append(".jpg")
                 .toString();
 
-        final File path = ReadableMapUtils.hasAndNotNullReadableMap(options, "storageOptions") && !forceLocal
+        final File rootPath = ReadableMapUtils.hasAndNotNullReadableMap(options, "storageOptions") && !forceLocal
                 ? Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
                 : reactContext.getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 
+        String relativePath = "";
+        if (ReadableMapUtils.hasAndNotNullReadableMap(options, "storageOptions")) {
+            final ReadableMap storageOptions = options.getMap("storageOptions");
+            if (storageOptions.hasKey("path"))
+            {
+                relativePath = storageOptions.getString("path");
+            }
+        }
+
+        final File path = new File(rootPath, relativePath);
         File result = new File(path, filename);
 
         try

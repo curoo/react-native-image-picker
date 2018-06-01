@@ -20,6 +20,7 @@ public class ImageConfig
     public final int quality;
     public final int rotation;
     public final boolean saveToCameraRoll;
+    public final String path;
 
     public ImageConfig(@Nullable final File original,
                        @Nullable final File resized,
@@ -27,7 +28,8 @@ public class ImageConfig
                        final int maxHeight,
                        final int quality,
                        final int rotation,
-                       final boolean saveToCameraRoll)
+                       final boolean saveToCameraRoll,
+                       final String path)
     {
         this.original = original;
         this.resized = resized;
@@ -36,6 +38,7 @@ public class ImageConfig
         this.quality = quality;
         this.rotation = rotation;
         this.saveToCameraRoll = saveToCameraRoll;
+        this.path = path;
     }
 
     public @NonNull ImageConfig withMaxWidth(final int maxWidth)
@@ -43,7 +46,7 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, this.resized, maxWidth,
                 this.maxHeight, this.quality, this.rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
     }
 
@@ -52,7 +55,7 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, this.resized, this.maxWidth,
                 maxHeight, this.quality, this.rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
 
     }
@@ -62,7 +65,7 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, this.resized, this.maxWidth,
                 this.maxHeight, quality, this.rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
     }
 
@@ -71,7 +74,7 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, this.resized, this.maxWidth,
                 this.maxHeight, this.quality, rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
     }
 
@@ -80,7 +83,7 @@ public class ImageConfig
         return new ImageConfig(
                 original, this.resized, this.maxWidth,
                 this.maxHeight, this.quality, this.rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
     }
 
@@ -89,7 +92,7 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, resized, this.maxWidth,
                 this.maxHeight, this.quality, this.rotation,
-                this.saveToCameraRoll
+                this.saveToCameraRoll, this.path
         );
     }
 
@@ -98,7 +101,16 @@ public class ImageConfig
         return new ImageConfig(
                 this.original, this.resized, this.maxWidth,
                 this.maxHeight, this.quality, this.rotation,
-                saveToCameraRoll
+                saveToCameraRoll, this.path
+        );
+    }
+
+    public @NonNull ImageConfig withPath(@Nullable final String path)
+    {
+        return new ImageConfig(
+                this.original, this.resized, this.maxWidth,
+                this.maxHeight, this.quality, this.rotation,
+                this.saveToCameraRoll, path
         );
     }
 
@@ -125,6 +137,7 @@ public class ImageConfig
             rotation = options.getInt("rotation");
         }
         boolean saveToCameraRoll = false;
+        String path = "";
         if (options.hasKey("storageOptions"))
         {
             final ReadableMap storageOptions = options.getMap("storageOptions");
@@ -132,8 +145,12 @@ public class ImageConfig
             {
                 saveToCameraRoll = storageOptions.getBoolean("cameraRoll");
             }
+            if (storageOptions.hasKey("path"))
+            {
+                path = storageOptions.getString("path");
+            }
         }
-        return new ImageConfig(this.original, this.resized, maxWidth, maxHeight, quality, rotation, saveToCameraRoll);
+        return new ImageConfig(this.original, this.resized, maxWidth, maxHeight, quality, rotation, saveToCameraRoll, path);
     }
 
     public boolean useOriginal(int initialWidth,
