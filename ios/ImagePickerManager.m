@@ -231,6 +231,8 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
     return originalResource.originalFilename;
 }
 
+#pragma mark - UIImagePickerControllerDelegate
+
 - (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary<NSString *,id> *)info
 {
     dispatch_block_t dismissCompletionBlock = ^{
@@ -403,7 +405,8 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
             NSDictionary *storageOptions = [self.options objectForKey:@"storageOptions"];
             if (storageOptions && [[storageOptions objectForKey:@"cameraRoll"] boolValue] == YES && self.picker.sourceType == UIImagePickerControllerSourceTypeCamera) {
                 ALAssetsLibrary *library = [[ALAssetsLibrary alloc] init];
-                if ([[storageOptions objectForKey:@"waitUntilSaved"] boolValue]) {
+                NSString *albumName = [storageOptions objectForKey:@"album"];
+                if ([[storageOptions objectForKey:@"waitUntilSaved"] boolValue] || albumName) {
                     [library writeImageToSavedPhotosAlbum:image.CGImage metadata:[info valueForKey:UIImagePickerControllerMediaMetadata] completionBlock:^(NSURL *assetURL, NSError *error) {
                         if (error) {
                             NSLog(@"Error while saving picture into photo album");
@@ -416,6 +419,10 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
                                 // This implementation will never have a location for the captured image, it needs to be added manually with CoreLocation code here.
                                 if (capturedAsset.creationDate) {
                                     self.response[@"timestamp"] = [[ImagePickerManager ISO8601DateFormatter] stringFromDate:capturedAsset.creationDate];
+                                }
+                                // Assign image to a custom album if required.
+                                if (albumName) {
+                                    [self moveImageInCameraRoll:capturedAsset toAlbum:albumName];
                                 }
                             }
                             self.callback(@[self.response]);
@@ -689,6 +696,70 @@ RCT_EXPORT_METHOD(showImagePicker:(NSDictionary *)options callback:(RCTResponseS
         return @NO;
     }
 }
+
+// Based on https://stackoverflow.com/a/39909129/1277350
+- (void)moveImageInCameraRoll:(PHAsset*)image toAlbum:(NSString*)albumName {
+    if (!image) {
+        NSLog(@"Error saving image to album: invalid image asset");
+        return;
+    }
+    
+    if (!albumName || [@"" isEqualToString:albumName]) {
+        NSLog(@"Error saving image to album: invalid album name");
+        return;
+    }
+    
+    // Declare a block to handle the collection change request when the album (asset collection) is available.
+    void (^saveBlock)(PHAssetCollection *assetCollection) = ^void(PHAssetCollection *assetCollection) {
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            
+            // If you were creating a new image (without metadata)...
+            // PHAssetChangeRequest *assetChangeRequest = [PHAssetChangeRequest creationRequestForAssetFromImage:image];
+            // PHAssetCollectionChangeRequest *assetCollectionChangeRequest = [PHAssetCollectionChangeRequest changeRequestForAssetCollection:assetCollection];
+            // [assetCollectionChangeRequest addAssets:@[[assetChangeRequest placeholderForCreatedAsset]]];
+            PHAssetCollectionChangeRequest *assetCollectionChangeRequest = [PHAssetCollectionChangeRequest changeRequestForAssetCollection:assetCollection];
+            [assetCollectionChangeRequest addAssets:@[image]];
+            
+        } completionHandler:^(BOOL success, NSError *error) {
+            
+            if (!success) {
+                NSLog(@"Error saving to album: %@", error);
+            }
+        }];
+    };
+    
+    // Check whether the album exists.
+    PHFetchOptions *fetchOptions = [[PHFetchOptions alloc] init];
+    fetchOptions.predicate = [NSPredicate predicateWithFormat:@"localizedTitle = %@", albumName];
+    PHFetchResult *fetchResult = [PHAssetCollection fetchAssetCollectionsWithType:PHAssetCollectionTypeAlbum
+                                                                          subtype:PHAssetCollectionSubtypeAny
+                                                                          options:fetchOptions];
+    if (fetchResult.count > 0) {
+        // Save to existing album.
+        saveBlock(fetchResult.firstObject);
+    } else {
+        // Create a new album.
+        __block PHObjectPlaceholder *albumPlaceholder;
+        [[PHPhotoLibrary sharedPhotoLibrary] performChanges:^{
+            
+            PHAssetCollectionChangeRequest *changeRequest = [PHAssetCollectionChangeRequest creationRequestForAssetCollectionWithTitle:albumName];
+            albumPlaceholder = changeRequest.placeholderForCreatedAssetCollection;
+            
+        } completionHandler:^(BOOL success, NSError *error) {
+            if (success) {
+                PHFetchResult *fetchResult = [PHAssetCollection fetchAssetCollectionsWithLocalIdentifiers:@[albumPlaceholder.localIdentifier] options:nil];
+                if (fetchResult.count > 0) {
+                    saveBlock(fetchResult.firstObject);
+                } else {
+                    NSLog(@"Error finding new album: %@", error);
+                }
+            } else {
+                NSLog(@"Error creating album: %@", error);
+            }
+        }];
+    }
+}
+
 
 #pragma mark - Class Methods
 
